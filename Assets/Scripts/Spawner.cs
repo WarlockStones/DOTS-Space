@@ -53,7 +53,7 @@ partial struct SpawnerSystem : ISystem
 
             ecb.Playback(state.EntityManager);
             ecb.Dispose();
-            enemiesToSpawn += 13;
+            enemiesToSpawn += 25;
         }
 
         timer -= SystemAPI.Time.DeltaTime;

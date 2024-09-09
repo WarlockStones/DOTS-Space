@@ -10,28 +10,19 @@ using Unity.Collections;
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(TransformSystemGroup))]
 [UpdateAfter(typeof(MovementSystem))]
-public partial struct BoundsSystem : ISystem
+public partial class BoundsSystem : SystemBase
 {
     private EntityQuery query;
 
-    [BurstCompile]
-    void OnUpdate(ref SystemState state)
+    protected override void OnUpdate()
     {
-        var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.TempJob);
-
-        // TODO: Limit player movement
-
-        // TODO: Job
-        foreach ((LocalToWorld localToWorld, Entity entity) in SystemAPI.Query<LocalToWorld>().WithEntityAccess())
+        const float lowestYPos = -5.0f;
+        Entities.WithAll<LocalToWorld>().ForEach((Entity entity, in LocalToWorld localToWorld) =>
         {
-            if (localToWorld.Position.y <= -5)
+            if (localToWorld.Position.y <= lowestYPos)
             {
-                ecb.DestroyEntity(entity);
-                // ecb.RemoveComponent(entity, VelocityComponent);
+                EntityManager.DestroyEntity(entity);
             }
-        }
-
-        ecb.Playback(state.EntityManager);
-        ecb.Dispose();
+        }).WithStructuralChanges().WithoutBurst().Run(); // Because we are making changes and accessing EntityManager
     }
 }
