@@ -8,10 +8,12 @@ partial class InputSystem : SystemBase
 {
 
     private InputActions inputActions;
+    bool shooting;
 
     protected override void OnCreate()
     {
         inputActions = new InputActions();
+        inputActions.Gameplay.Shoot.performed += context => { shooting = true; };
         RequireForUpdate<PlayerControllerComponent>();
     }
 
@@ -24,7 +26,9 @@ partial class InputSystem : SystemBase
         float2 input = inputActions.Gameplay.Move.ReadValue<Vector2>();
         SystemAPI.SetSingleton(new PlayerControllerComponent
         {
-            moveInput = input
+            moveInput = input,
+            isShooting = shooting
         });
+        shooting = false;
     }
 }

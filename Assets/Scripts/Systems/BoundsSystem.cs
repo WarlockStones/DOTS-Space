@@ -17,12 +17,14 @@ public partial class BoundsSystem : SystemBase
     protected override void OnUpdate()
     {
         const float lowestYPos = -5.0f;
+        const float highestYPos = 15.0f; // For bullet
         Entities.WithAll<LocalToWorld>().ForEach((Entity entity, in LocalToWorld localToWorld) =>
         {
-            if (localToWorld.Position.y <= lowestYPos)
+            float yPos = localToWorld.Position.y;
+            if (yPos <= lowestYPos || yPos >= highestYPos)
             {
                 EntityManager.DestroyEntity(entity);
-            }
+            } 
         }).WithStructuralChanges().WithoutBurst().Run(); // Because we are making changes and accessing EntityManager
     }
 }

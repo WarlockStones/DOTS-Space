@@ -1,7 +1,5 @@
 using UnityEngine;
 using Unity.Entities;
-using Unity.Entities.Serialization;
-using Unity.Mathematics;
 
 public class EnemyAuthoring : MonoBehaviour
 {
