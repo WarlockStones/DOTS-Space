@@ -3,33 +3,60 @@ using Unity.Transforms;
 using Unity.Burst;
 using Unity.Jobs;
 using Unity.Mathematics;
-
+using Unity.Collections;
+using System.Diagnostics;
 
 partial struct SpawnerSystem : ISystem
 {
+    Entity prototype;
+    bool firstRun;
+    float timer;
+    float secondsBetweenWaves;
+    int enemiesToSpawn;
+
     [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
+        firstRun = true;
+        timer = 0.0f;
+        secondsBetweenWaves = 1f;
+        enemiesToSpawn = 3;
         state.RequireForUpdate<EnemyPrefabComponent>();
     }
-
 
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
+        if (timer <= 0.0f)
+        {
+            var ecb = new EntityCommandBuffer(Allocator.TempJob);
 
-        // TODO: Optimise this with IJobParallelFor
-        // Maybe set up some more stuff in EnemyAuthoring all the default components the enemy will need.
-        // Then do the special for just that instance in the SpawnJob. pos = (index, 0, 0) etc. 
-        Entity prototype = SystemAPI.GetSingleton<EnemyPrefabComponent>().value;
-        ecb.AddComponent<VelocityComponent>(prototype);
-        ecb.SetComponent(prototype, new VelocityComponent(new float3(0,0,0)));
+            if (firstRun)
+            {
+                // I tried to do this in OnCreate, OnStartRunning, and EnemyAuthoring.Bake.
+                prototype = SystemAPI.GetSingleton<EnemyPrefabComponent>().value;
 
-        var instance = ecb.Instantiate(prototype);
+                // BUG: This component is not added to the first wave of enemies
+                ecb.AddComponent(prototype, new VelocityComponent() { velocity = new float3(0, -5, 0)});
+            }
 
-        ecb.Playback(state.EntityManager);
-        ecb.Dispose();
+            var spawnJob = new SpawnJob
+            {
+                prototype = prototype,
+                ecb = ecb.AsParallelWriter(),
+                enemiesToSpawn = enemiesToSpawn
+            };
+
+            var spawnHandle = spawnJob.Schedule(enemiesToSpawn, 128);
+            spawnHandle.Complete();
+            timer = secondsBetweenWaves;
+
+            ecb.Playback(state.EntityManager);
+            ecb.Dispose();
+            enemiesToSpawn += 13;
+        }
+
+        timer -= SystemAPI.Time.DeltaTime;
     }
 
     [BurstCompile]
@@ -37,13 +64,25 @@ partial struct SpawnerSystem : ISystem
     {
         public Entity prototype;
         public EntityCommandBuffer.ParallelWriter ecb;
+        public int enemiesToSpawn;
+        const int maxEnemiesPerLane = 41;
+        const float xSpacing = 0.3f;
+        const float ySpacing = 0.3f;
 
         public void Execute(int index)
         {
+            float3 originPos = new float3(-6, 5.0f, 0); // Bottom left-most position of the wave
+            float3 spawnPos = originPos;
+            int lane = index / maxEnemiesPerLane; // 19/20 = 0.95 = 0; 24/20 = 1.2 = 1;
+            int lanePos = index % maxEnemiesPerLane;
+            spawnPos += new float3(lanePos * xSpacing, (float)(lane * ySpacing), 0);
+
+            // TODO: Position spawn in middle
+
             var e = ecb.Instantiate(index, prototype);
-            ecb.SetComponent(index, e, LocalTransform.FromPosition(new float3(0,0,0)));
+            ecb.SetComponent(index, e, LocalTransform.FromPosition(spawnPos));
+            // Sine for wave pattern?
             // ecb.AddComponent<VelocityComponent>(index, e, new VelocityComponent(new float3(0,-1,0)));
         }
     }
 }
-

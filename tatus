@@ -1,0 +1,119 @@
+[1mdiff --git a/Assets/Scripts/EnemyAuthoring.cs b/Assets/Scripts/EnemyAuthoring.cs[m
+[1mindex fbe448a..dd926b9 100644[m
+[1m--- a/Assets/Scripts/EnemyAuthoring.cs[m
+[1m+++ b/Assets/Scripts/EnemyAuthoring.cs[m
+[36m@@ -20,6 +20,9 @@[m [mpublic class EnemyBaker : Baker<EnemyAuthoring>[m
+         // Register prefab in the baker[m
+         var entityPrefab = GetEntity(authoring.prefab, TransformUsageFlags.Dynamic);[m
+ [m
+[32m+[m[32m        // ERROR: Entity does not belong to current authoring component[m
+[32m+[m[32m        // AddComponent(entityPrefab, new VelocityComponent());[m
+[32m+[m
+         // Add Entity reference to a component from later instatiation[m
+         var entity = GetEntity(TransformUsageFlags.None);[m
+         AddComponent(entity, new EnemyPrefabComponent() { value = entityPrefab });[m
+[1mdiff --git a/Assets/Scripts/Spawner.cs b/Assets/Scripts/Spawner.cs[m
+[1mindex bd761fc..025286a 100644[m
+[1m--- a/Assets/Scripts/Spawner.cs[m
+[1m+++ b/Assets/Scripts/Spawner.cs[m
+[36m@@ -3,33 +3,60 @@[m [musing Unity.Transforms;[m
+ using Unity.Burst;[m
+ using Unity.Jobs;[m
+ using Unity.Mathematics;[m
+[31m-[m
+[32m+[m[32musing Unity.Collections;[m
+[32m+[m[32musing System.Diagnostics;[m
+ [m
+ partial struct SpawnerSystem : ISystem[m
+ {[m
+[32m+[m[32m    Entity prototype;[m
+[32m+[m[32m    bool firstRun;[m
+[32m+[m[32m    float timer;[m
+[32m+[m[32m    float secondsBetweenWaves;[m
+[32m+[m[32m    int enemiesToSpawn;[m
+[32m+[m
+     [BurstCompile][m
+     public void OnCreate(ref SystemState state)[m
+     {[m
+[32m+[m[32m        firstRun = true;[m
+[32m+[m[32m        timer = 0.0f;[m
+[32m+[m[32m        secondsBetweenWaves = 1f;[m
+[32m+[m[32m        enemiesToSpawn = 3;[m
+         state.RequireForUpdate<EnemyPrefabComponent>();[m
+     }[m
+ [m
+[31m-[m
+     [BurstCompile][m
+     public void OnUpdate(ref SystemState state)[m
+     {[m
+[31m-        var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);[m
+[32m+[m[32m        if (timer <= 0.0f)[m
+[32m+[m[32m        {[m
+[32m+[m[32m            var ecb = new EntityCommandBuffer(Allocator.TempJob);[m
+[32m+[m
+[32m+[m[32m            if (firstRun)[m
+[32m+[m[32m            {[m
+[32m+[m[32m                // I tried to do this in OnCreate, OnStartRunning, and EnemyAuthoring.Bake.[m
+[32m+[m[32m                prototype = SystemAPI.GetSingleton<EnemyPrefabComponent>().value;[m
+[32m+[m
+[32m+[m[32m                // BUG: This component is not added to the first wave of enemies[m
+[32m+[m[32m                ecb.AddComponent(prototype, new VelocityComponent() { velocity = new float3(0, -5, 0)});[m
+[32m+[m[32m            }[m
+ [m
+[31m-        // TODO: Optimise this with IJobParallelFor[m
+[31m-        // Maybe set up some more stuff in EnemyAuthoring all the default components the enemy will need.[m
+[31m-        // Then do the special for just that instance in the SpawnJob. pos = (index, 0, 0) etc. [m
+[31m-        Entity prototype = SystemAPI.GetSingleton<EnemyPrefabComponent>().value;[m
+[31m-        ecb.AddComponent<VelocityComponent>(prototype);[m
+[31m-        ecb.SetComponent(prototype, new VelocityComponent(new float3(0,0,0)));[m
+[32m+[m[32m            var spawnJob = new SpawnJob[m
+[32m+[m[32m            {[m
+[32m+[m[32m                prototype = prototype,[m
+[32m+[m[32m                ecb = ecb.AsParallelWriter(),[m
+[32m+[m[32m                enemiesToSpawn = enemiesToSpawn[m
+[32m+[m[32m            };[m
+ [m
+[31m-        var instance = ecb.Instantiate(prototype);[m
+[32m+[m[32m            var spawnHandle = spawnJob.Schedule(enemiesToSpawn, 128);[m
+[32m+[m[32m            spawnHandle.Complete();[m
+[32m+[m[32m            timer = secondsBetweenWaves;[m
+ [m
+[31m-        ecb.Playback(state.EntityManager);[m
+[31m-        ecb.Dispose();[m
+[32m+[m[32m            ecb.Playback(state.EntityManager);[m
+[32m+[m[32m            ecb.Dispose();[m
+[32m+[m[32m            enemiesToSpawn += 13;[m
+[32m+[m[32m        }[m
+[32m+[m
+[32m+[m[32m        timer -= SystemAPI.Time.DeltaTime;[m
+     }[m
+ [m
+     [BurstCompile][m
+[36m@@ -37,13 +64,25 @@[m [mpartial struct SpawnerSystem : ISystem[m
+     {[m
+         public Entity prototype;[m
+         public EntityCommandBuffer.ParallelWriter ecb;[m
+[32m+[m[32m        public int enemiesToSpawn;[m
+[32m+[m[32m        const int maxEnemiesPerLane = 41;[m
+[32m+[m[32m        const float xSpacing = 0.3f;[m
+[32m+[m[32m        const float ySpacing = 0.3f;[m
+ [m
+         public void Execute(int index)[m
+         {[m
+[32m+[m[32m            float3 originPos = new float3(-6, 5.0f, 0); // Bottom left-most position of the wave[m
+[32m+[m[32m            float3 spawnPos = originPos;[m
+[32m+[m[32m            int lane = index / maxEnemiesPerLane; // 19/20 = 0.95 = 0; 24/20 = 1.2 = 1;[m
+[32m+[m[32m            int lanePos = index % maxEnemiesPerLane;[m
+[32m+[m[32m            spawnPos += new float3(lanePos * xSpacing, (float)(lane * ySpacing), 0);[m
+[32m+[m
+[32m+[m[32m            // TODO: Position spawn in middle[m
+[32m+[m
+             var e = ecb.Instantiate(index, prototype);[m
+[31m-            ecb.SetComponent(index, e, LocalTransform.FromPosition(new float3(0,0,0)));[m
+[32m+[m[32m            ecb.SetComponent(index, e, LocalTransform.FromPosition(spawnPos));[m
+[32m+[m[32m            // Sine for wave pattern?[m
+             // ecb.AddComponent<VelocityComponent>(index, e, new VelocityComponent(new float3(0,-1,0)));[m
+         }[m
+     }[m
+ }[m
+[31m-[m
