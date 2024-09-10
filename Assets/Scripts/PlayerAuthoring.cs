@@ -21,5 +21,7 @@ class PlayerBaker : Baker<PlayerAuthoring>
         float movementSpeed = authoring.movementSpeed;
         AddComponent(playerEntity, new PlayerControllerComponent{});
         AddComponent(playerEntity, new VelocityComponent());
+        AddComponent(playerEntity, new IsDisabledTag());
+        SetComponentEnabled<IsDisabledTag>(playerEntity, false);
     }
 }

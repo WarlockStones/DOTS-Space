@@ -4,7 +4,6 @@ using Unity.Burst;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Collections;
-using System.Diagnostics;
 
 partial struct SpawnerSystem : ISystem
 {
@@ -31,6 +30,7 @@ partial struct SpawnerSystem : ISystem
         {
             var ecb = new EntityCommandBuffer(Allocator.TempJob);
 
+            // TODO: Fix this ugly code, it does not even work!
             if (firstRun)
             {
                 // I tried to do this in OnCreate, OnStartRunning, and EnemyAuthoring.Bake.
@@ -38,6 +38,9 @@ partial struct SpawnerSystem : ISystem
 
                 // BUG: This component is not added to the first wave of enemies
                 ecb.AddComponent(prototype, new VelocityComponent() { velocity = new float3(0, -5, 0)});
+                ecb.AddComponent(prototype, new IsDisabledTag());
+                ecb.SetComponentEnabled<IsDisabledTag>(prototype, false);
+                firstRun = false;
             }
 
             var spawnJob = new SpawnJob

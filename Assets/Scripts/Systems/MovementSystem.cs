@@ -1,23 +1,29 @@
-using UnityEngine;
 using Unity.Entities;
 using Unity.Transforms;
-using Unity.Jobs;
-using UnityEngine.Jobs;
 using Unity.Burst;
 using Unity.Collections;
-using Unity.Mathematics;
 
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(TransformSystemGroup))]
 partial struct MovementSystem : ISystem
 {
+    EntityQuery query;
+
+    void OnCreate(ref SystemState state)
+    {
+        query = new EntityQueryBuilder(Allocator.Temp)
+            .WithAllRW<LocalTransform>()
+            .WithAll<VelocityComponent>()
+            .WithDisabled<IsDisabledTag>()
+            .Build(ref state);
+    }
+
     [BurstCompile]
     void OnUpdate(ref SystemState state)
     {
-        // Use query automatically generated from matching parameters in Job's Execute
         new MovementJob() { 
             deltaTime = SystemAPI.Time.DeltaTime 
-        }.ScheduleParallel();
+        }.ScheduleParallel(query);
     }
 }
 
@@ -27,21 +33,10 @@ partial struct MovementJob : IJobEntity
     public float deltaTime;
     public void Execute(RefRW<LocalTransform> transform, RefRO<VelocityComponent> velocityComp)
     {
-        // TODO: How to: SystemAPI.Time.DeltaTime;
         transform.ValueRW.Position += (velocityComp.ValueRO.velocity) * deltaTime;
     }
 }
 
-/* Manual Query 
-   EntityQuery query; 
-   OnCreate:
-     query = GetEntityQuery(ComponentType.ReadWrite<SampleComponent>(),
-                            ComponentType.ReadOnly<BoidTarget>());
-   OnUpdate:
-     new MovementJob().ScheduleParallel(query)
-     
- */
-     
 
 /* Method 1 not using Burst + Multithreading
 public void OnUpdate(ref SystemState state)
