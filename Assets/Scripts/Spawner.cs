@@ -4,7 +4,9 @@ using Unity.Burst;
 using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Collections;
+using Unity.VisualScripting;
 
+[UpdateInGroup(typeof(LateSimulationSystemGroup))]
 partial struct SpawnerSystem : ISystem
 {
     Entity prototype;
@@ -13,79 +15,99 @@ partial struct SpawnerSystem : ISystem
     float secondsBetweenWaves;
     int enemiesToSpawn;
 
+    EntityQuery query;
+
     [BurstCompile]
-    public void OnCreate(ref SystemState state)
+    void OnCreate(ref SystemState state)
     {
+        var ecb = new EntityCommandBuffer(Allocator.TempJob);
         firstRun = true;
         timer = 0.0f;
         secondsBetweenWaves = 1f;
         enemiesToSpawn = 3;
-        state.RequireForUpdate<EnemyPrefabComponent>();
+
+        query = new EntityQueryBuilder(Allocator.Temp)
+            .WithAllRW<LocalToWorld>()
+            .WithAll<IsDisabledTag>()
+            .Build(ref state);
+
+        state.RequireForUpdate<IsDisabledTag>();
     }
 
     [BurstCompile]
-    public void OnUpdate(ref SystemState state)
+    void OnUpdate(ref SystemState state)
     {
         if (timer <= 0.0f)
         {
             var ecb = new EntityCommandBuffer(Allocator.TempJob);
 
-            // TODO: Fix this ugly code, it does not even work!
-            if (firstRun)
+            var entities = query.ToEntityArray(Allocator.TempJob);
+            if (entities.Length < enemiesToSpawn)
             {
-                // I tried to do this in OnCreate, OnStartRunning, and EnemyAuthoring.Bake.
-                prototype = SystemAPI.GetSingleton<EnemyPrefabComponent>().value;
-
-                // BUG: This component is not added to the first wave of enemies
-                ecb.AddComponent(prototype, new VelocityComponent() { velocity = new float3(0, -5, 0)});
-                ecb.AddComponent(prototype, new IsDisabledTag());
-                ecb.SetComponentEnabled<IsDisabledTag>(prototype, false);
-                firstRun = false;
+                enemiesToSpawn = entities.Length;
             }
 
-            var spawnJob = new SpawnJob
+            for (int i = 0; i < enemiesToSpawn; ++i)
             {
-                prototype = prototype,
-                ecb = ecb.AsParallelWriter(),
-                enemiesToSpawn = enemiesToSpawn
-            };
+                const int maxEnemiesPerLane = 41;
+                const float xSpacing = 0.3f;
+                const float ySpacing = 0.3f;
 
-            var spawnHandle = spawnJob.Schedule(enemiesToSpawn, 128);
-            spawnHandle.Complete();
-            timer = secondsBetweenWaves;
+                float3 originPos = new float3(-6, 5.0f, 0); // Bottom left-most position of the wave
+                float3 spawnPos = originPos;
+                int lane = i / maxEnemiesPerLane; // 19/20 = 0.95 = 0; 24/20 = 1.2 = 1;
+                int lanePos = i % maxEnemiesPerLane;
+                spawnPos += new float3(lanePos * xSpacing, (float)(lane * ySpacing), 0);
+
+                var e = entities[i];
+                ecb.SetComponent(e, LocalTransform.FromPosition(spawnPos));
+                ecb.SetComponentEnabled<IsDisabledTag>(e, false);
+            }
 
             ecb.Playback(state.EntityManager);
             ecb.Dispose();
+            
+
+            timer = secondsBetweenWaves;
             enemiesToSpawn += 25;
         }
 
         timer -= SystemAPI.Time.DeltaTime;
     }
 
+    [WithAll(typeof(LocalToWorld), typeof(IsDisabledTag))]
     [BurstCompile]
-    partial struct SpawnJob : IJobParallelFor
+    partial struct SpawnJob : IJobEntity
     {
-        public Entity prototype;
         public EntityCommandBuffer.ParallelWriter ecb;
         public int enemiesToSpawn;
         const int maxEnemiesPerLane = 41;
         const float xSpacing = 0.3f;
         const float ySpacing = 0.3f;
 
-        public void Execute(int index)
+        [BurstCompile]
+        public void Execute([EntityIndexInQuery] int index, Entity entity, in LocalToWorld localToWorld)
         {
-            float3 originPos = new float3(-6, 5.0f, 0); // Bottom left-most position of the wave
-            float3 spawnPos = originPos;
-            int lane = index / maxEnemiesPerLane; // 19/20 = 0.95 = 0; 24/20 = 1.2 = 1;
-            int lanePos = index % maxEnemiesPerLane;
-            spawnPos += new float3(lanePos * xSpacing, (float)(lane * ySpacing), 0);
+            if (index >= enemiesToSpawn)
+            {
+                return;
+            }
+            else
+            {
 
-            // TODO: Position spawn in middle
+                float3 originPos = new float3(-6, 5.0f, 0); // Bottom left-most position of the wave
+                float3 spawnPos = originPos;
+                int lane = index / maxEnemiesPerLane; // 19/20 = 0.95 = 0; 24/20 = 1.2 = 1;
+                int lanePos = index % maxEnemiesPerLane;
+                spawnPos += new float3(lanePos * xSpacing, (float)(lane * ySpacing), 0);
 
-            var e = ecb.Instantiate(index, prototype);
-            ecb.SetComponent(index, e, LocalTransform.FromPosition(spawnPos));
-            // Sine for wave pattern?
-            // ecb.AddComponent<VelocityComponent>(index, e, new VelocityComponent(new float3(0,-1,0)));
+                // TODO: Enable. Move to spawnPos.
+                ecb.SetComponent(index, entity, LocalTransform.FromPosition(spawnPos));
+                ecb.SetComponentEnabled<IsDisabledTag>(index, entity, false);
+
+            }
+
+            // Sine for wave pattern? Position spawn in middle?
         }
     }
 }
