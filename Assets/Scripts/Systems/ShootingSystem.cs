@@ -7,6 +7,7 @@ public partial struct ShootingSystem : ISystem
     float shootTimer;
     float shootCooldown;
     const float bulletSpeed = 10;
+    const float bulletLifetime = 3;
     Entity bullet;
     void OnCreate(ref SystemState state)
     {
@@ -29,9 +30,14 @@ public partial struct ShootingSystem : ISystem
                 if (bullet == Entity.Null)
                 {
                     bullet = SystemAPI.GetSingleton<BulletPrefabComponent>().value;
-                    state.EntityManager.AddComponent(bullet, typeof(VelocityComponent));
+                    state.EntityManager.AddComponent<VelocityComponent>(bullet);
                     state.EntityManager.SetComponentData(bullet, new VelocityComponent(new float3(0, bulletSpeed, 0)));
+                    state.EntityManager.AddComponent<IsDisabledTag>(bullet);
+                    state.EntityManager.SetComponentEnabled<IsDisabledTag>(bullet, false);
+                    state.EntityManager.AddComponent<LifetimeComponent>(bullet);
+                    state.EntityManager.SetComponentData(bullet, new LifetimeComponent(bulletLifetime));
                 }
+
                 var player = SystemAPI.GetSingletonEntity<PlayerControllerComponent>();
                 var playerPos = SystemAPI.GetComponentRO<LocalTransform>(player).ValueRO.Position;
 

@@ -9,23 +9,21 @@ using Unity.Burst;
 [UpdateAfter(typeof(MovementSystem))]
 public partial class BoundsSystem : SystemBase
 {
-    private EntityQuery query;
-
     [BurstCompile]
     protected override void OnUpdate()
     {
-        const float lowestYPos = -5.0f; // -5
-        const float highestYPos = 15.0f; // For bullet
+        const float lowestYPos = -5.0f;
 
         Entities
             .WithDeferredPlaybackSystem<EndSimulationEntityCommandBufferSystem>()
             .WithAll<LocalToWorld>()
-            .WithDisabled<IsDisabledTag>()
+            .WithDisabled<IsDisabledTag>() 
+            .WithAbsent<LifetimeComponent>()
             .ForEach(
             (Entity entity, EntityCommandBuffer ecb, in LocalToWorld localToWorld) =>
         {
             float yPos = localToWorld.Position.y;
-            if (yPos <= lowestYPos || yPos >= highestYPos)
+            if (yPos <= lowestYPos)
             {
                 // ecb.AddComponent(entity, new IsDisabledTag());
                 ecb.SetComponentEnabled<IsDisabledTag>(entity, true);
