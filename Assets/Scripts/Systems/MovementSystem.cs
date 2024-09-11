@@ -3,12 +3,14 @@ using Unity.Transforms;
 using Unity.Burst;
 using Unity.Collections;
 
+[BurstCompile]
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(TransformSystemGroup))]
 partial struct MovementSystem : ISystem
 {
     EntityQuery query;
 
+    [BurstCompile]
     void OnCreate(ref SystemState state)
     {
         query = new EntityQueryBuilder(Allocator.Temp)
@@ -36,17 +38,3 @@ partial struct MovementJob : IJobEntity
         transform.ValueRW.Position += (velocityComp.ValueRO.velocity) * deltaTime;
     }
 }
-
-
-/* Method 1 not using Burst + Multithreading
-public void OnUpdate(ref SystemState state)
-{
-    var deltaTime = SystemAPI.Time.DeltaTime;
-    // TODO: Get all entities with Transform and VelocityComponent
-
-    foreach (var transform in SystemAPI.Query<RefRW<LocalTransform>>().WithAll<VelocityComponent>())
-    {
-        float3 f = new float3(0, -1, 0);
-        transform.ValueRW.Position += f * deltaTime;
-    }
-*/

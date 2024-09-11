@@ -20,7 +20,7 @@ public partial struct EnemyCreationSystem : ISystem
     [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        var ecb = new EntityCommandBuffer(Allocator.TempJob);
+        var ecb = new EntityCommandBuffer(Allocator.Temp);
 
         Entity prototype = SystemAPI.GetSingleton<EnemyPrefabComponent>().value;
         ecb.AddComponent(prototype, new VelocityComponent() 
@@ -45,9 +45,7 @@ public partial struct EnemyCreationSystem : ISystem
         JobHandle handle = job.Schedule(enemiesToCreate, 128);
         handle.Complete();
 
-        // TODO: Decide on what to do here
-        // Find and remove EnemyCreationTag when done
-        // Just use EnemyPrefab thing?
+        // No more entities to spawn. Destroy singleton to stop Update
         ecb.DestroyEntity(SystemAPI.GetSingletonEntity<EnemyPrefabComponent>());
 
         ecb.Playback(state.EntityManager);

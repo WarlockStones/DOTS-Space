@@ -1,27 +1,23 @@
 using Unity.Entities;
 using Unity.Transforms;
 using Unity.Burst;
-using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Collections;
-using Unity.VisualScripting;
 
 [UpdateInGroup(typeof(LateSimulationSystemGroup))]
+[BurstCompile]
 partial struct SpawnerSystem : ISystem
 {
     Entity prototype;
-    bool firstRun;
+    EntityQuery query;
     float timer;
     float secondsBetweenWaves;
     int enemiesToSpawn;
 
-    EntityQuery query;
-
     [BurstCompile]
     void OnCreate(ref SystemState state)
     {
-        var ecb = new EntityCommandBuffer(Allocator.TempJob);
-        firstRun = true;
+        var ecb = new EntityCommandBuffer(Allocator.Temp);
         timer = 0.0f;
         secondsBetweenWaves = 1f;
         enemiesToSpawn = 3;
@@ -39,9 +35,9 @@ partial struct SpawnerSystem : ISystem
     {
         if (timer <= 0.0f)
         {
-            var ecb = new EntityCommandBuffer(Allocator.TempJob);
+            var ecb = new EntityCommandBuffer(Allocator.Temp);
 
-            var entities = query.ToEntityArray(Allocator.TempJob);
+            var entities = query.ToEntityArray(Allocator.Temp);
             if (entities.Length < enemiesToSpawn)
             {
                 enemiesToSpawn = entities.Length;
@@ -66,48 +62,11 @@ partial struct SpawnerSystem : ISystem
 
             ecb.Playback(state.EntityManager);
             ecb.Dispose();
-            
 
             timer = secondsBetweenWaves;
             enemiesToSpawn += 25;
         }
 
         timer -= SystemAPI.Time.DeltaTime;
-    }
-
-    [WithAll(typeof(LocalToWorld), typeof(IsDisabledTag))]
-    [BurstCompile]
-    partial struct SpawnJob : IJobEntity
-    {
-        public EntityCommandBuffer.ParallelWriter ecb;
-        public int enemiesToSpawn;
-        const int maxEnemiesPerLane = 41;
-        const float xSpacing = 0.3f;
-        const float ySpacing = 0.3f;
-
-        [BurstCompile]
-        public void Execute([EntityIndexInQuery] int index, Entity entity, in LocalToWorld localToWorld)
-        {
-            if (index >= enemiesToSpawn)
-            {
-                return;
-            }
-            else
-            {
-
-                float3 originPos = new float3(-6, 5.0f, 0); // Bottom left-most position of the wave
-                float3 spawnPos = originPos;
-                int lane = index / maxEnemiesPerLane; // 19/20 = 0.95 = 0; 24/20 = 1.2 = 1;
-                int lanePos = index % maxEnemiesPerLane;
-                spawnPos += new float3(lanePos * xSpacing, (float)(lane * ySpacing), 0);
-
-                // TODO: Enable. Move to spawnPos.
-                ecb.SetComponent(index, entity, LocalTransform.FromPosition(spawnPos));
-                ecb.SetComponentEnabled<IsDisabledTag>(index, entity, false);
-
-            }
-
-            // Sine for wave pattern? Position spawn in middle?
-        }
     }
 }

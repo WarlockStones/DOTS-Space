@@ -1,7 +1,9 @@
 using Unity.Entities;
 using Unity.Transforms;
 using Unity.Mathematics;
+using Unity.Burst;
 
+[BurstCompile]
 public partial struct ShootingSystem : ISystem
 {
     float shootTimer;
@@ -9,16 +11,17 @@ public partial struct ShootingSystem : ISystem
     const float bulletSpeed = 10;
     const float bulletLifetime = 3;
     Entity bullet;
+
+    [BurstCompile]
     void OnCreate(ref SystemState state)
     {
         shootTimer = 0;
         shootCooldown = 0.1f;
         state.RequireForUpdate<PlayerControllerComponent>();
         state.RequireForUpdate<BulletPrefabComponent>();
-
-        // TODO: Setup bullet
     }
 
+    [BurstCompile]
     void OnUpdate(ref SystemState state)
     {
 
@@ -27,7 +30,7 @@ public partial struct ShootingSystem : ISystem
             bool isShooting = SystemAPI.GetSingleton<PlayerControllerComponent>().isShooting;
             if (isShooting)
             {
-                if (bullet == Entity.Null)
+                if (bullet == Entity.Null) 
                 {
                     bullet = SystemAPI.GetSingleton<BulletPrefabComponent>().value;
                     state.EntityManager.AddComponent<VelocityComponent>(bullet);

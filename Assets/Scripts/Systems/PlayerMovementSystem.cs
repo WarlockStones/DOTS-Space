@@ -1,14 +1,17 @@
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Burst;
 
-// This system should not be multithreaded!
+[BurstCompile]
 partial struct PlayerMovementSystem : ISystem
 {
+    [BurstCompile]
     void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<PlayerControllerComponent>();
     }
 
+    [BurstCompile]
     void OnUpdate(ref SystemState state)
     {
         var player = SystemAPI.GetSingletonEntity<PlayerControllerComponent>();
