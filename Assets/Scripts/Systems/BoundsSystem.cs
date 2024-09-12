@@ -6,7 +6,7 @@ using Unity.Burst;
 [BurstCompile]
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(TransformSystemGroup))]
-[UpdateAfter(typeof(MovementSystem))]
+[UpdateAfter(typeof(VelocitySystem))]
 public partial class BoundsSystem : SystemBase
 {
     [BurstCompile]

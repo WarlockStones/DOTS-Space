@@ -6,7 +6,7 @@ using Unity.Collections;
 [BurstCompile]
 [RequireMatchingQueriesForUpdate]
 [UpdateInGroup(typeof(TransformSystemGroup))]
-partial struct MovementSystem : ISystem
+partial struct VelocitySystem : ISystem
 {
     EntityQuery query;
 
