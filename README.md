@@ -13,5 +13,5 @@ SpawnerSystem.cs
 EnemyPrefab is baked in 'EnemyAuthoring.cs', it is then instantiated in 'EnemyCreationSystem.cs' until it is finally brought into play by 'SpawnerSystem.cs'
 
 # Controls
-WASD - move.\n
+WASD - move.\
 Space - shoot.
